@@ -9,7 +9,7 @@ import tempfile
 import logging
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,  # Set to DEBUG for detailed logs; change to INFO or WARNING for less verbosity
+    level=logging.INFO,  # Set to INFO or WARNING for less verbosity
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
@@ -19,9 +19,6 @@ def preprocess_text(input_text):
     """
     Preprocess the input text to normalize punctuation, collapse whitespace, and ensure consistency.
     """
-    logger.debug("Original input text:")
-    logger.debug(input_text)
-
     # 1. Normalize punctuation
     normalized_text = input_text
     normalized_text = normalized_text.replace("……", "...")  # Replace ellipsis
@@ -42,9 +39,6 @@ def preprocess_text(input_text):
     spaced_text = re.sub(r'(。|，|！|？|；)', r' \1 ', normalized_text)
     spaced_text = re.sub(r'\s+', ' ', spaced_text)  # Remove extra spaces created by spacing adjustment
 
-    logger.debug("Preprocessed text:")
-    logger.debug(spaced_text)
-
     return spaced_text
 
 
@@ -57,7 +51,6 @@ def get_chunks_from_text(text):
     
     # Use regex to split the text, keeping the punctuation in the result
     chunks = re.split(f'({punctuation_pattern})', text)
-    logger.debug(f"Split input text into base chunks: {chunks}")
     
     # Combine characters and punctuation into meaningful chunks
     result = []
@@ -65,7 +58,6 @@ def get_chunks_from_text(text):
         chunk = chunks[i] + (chunks[i + 1] if i + 1 < len(chunks) else "")
         result.append(chunk.strip())
     
-    logger.debug(f"Final processed chunks: {result}")
     return result
 
 
@@ -76,9 +68,6 @@ def align_chunks_to_timestamps(chunks, srt_entries):
     result = []
     current_word_index = 0
     entry_count = len(srt_entries)
-
-    logger.debug(f"Number of chunks: {len(chunks)}")
-    logger.debug(f"Number of SRT entries: {entry_count}")
     
     for i, chunk in enumerate(chunks):
         # Preprocess chunk to remove punctuation for word-level matching
@@ -86,7 +75,6 @@ def align_chunks_to_timestamps(chunks, srt_entries):
 
         # Handle punctuation-only chunks
         if not clean_chunk:
-            logger.debug(f"Skipping punctuation-only chunk: '{chunk}'")
             # Add the punctuation-only chunk to the result without timestamps
             result.append((chunk, None, None))
             continue
@@ -112,9 +100,7 @@ def align_chunks_to_timestamps(chunks, srt_entries):
         # Ensure all words in the chunk are matched
         if words_matched and start_time is not None and end_time is not None:
             result.append((chunk, start_time, end_time))
-            logger.debug(f"Chunk '{chunk}' aligned to start: {start_time}, end: {end_time}")
         else:
-            logger.error(f"Failed to match chunk: '{chunk}'. Remaining clean chunk: '{clean_chunk}'. Start index: {current_word_index}")
             raise ValueError(f"Unable to fully match the chunk '{chunk}' with word SRT entries.")
     
     return result
@@ -138,7 +124,6 @@ def convert_word_srt_to_punctuated_srt(input_text, word_srt_content):
     for i, (chunk, start_time, end_time) in enumerate(chunks_with_timestamps, start=1):
         if start_time is None or end_time is None:
             # Skip punctuation-only chunks with no timestamps
-            logger.debug(f"Skipping punctuation-only subtitle entry: '{chunk}'")
             continue
 
         entry = srt.Subtitle(index=i, start=start_time, end=end_time, content=chunk)
@@ -167,14 +152,10 @@ async def generate_tts(text, voice, output_dir) -> None:
 
     # Write the word SRT file for debugging
     word_srt = submaker.get_srt()
-    logger.debug(f"Generated word SRT: \n{word_srt}")
-    with open(f"{output_dir}/word_transcript.srt", "w", encoding="utf-8") as file:
-        file.write(word_srt)
 
     # Convert word SRT to punctuated SRT
     try:
         punctuated_srt = convert_word_srt_to_punctuated_srt(text, word_srt)
-        logger.debug(f"Generated punctuated SRT: \n{punctuated_srt}")
     except Exception as e:
         logger.error("An error occurred during SRT conversion", exc_info=True)
         raise
@@ -207,8 +188,24 @@ Your content here
     title = title.replace("# Title\n", "").strip()
     text = text.strip()
     processed_text = preprocess_text(text)
-    logger.debug(f"Preprocessed TEXT: {processed_text}")
 
     output_dir = os.path.expanduser(f"~/Downloads/{title}")
-    voice = "zh-CN-XiaoxiaoNeural"
+    
+    # select voice
+    voices = (
+        ("zh-CN-XiaoxiaoNeural", "young adult woman"),
+        ("zh-CN-XiaoyiNeural", "teen girl"),
+        ("zh-CN-YunjianNeural", "adult male (passionate)"),
+        ("zh-CN-YunxiNeural", "teen boy"),
+        ("zh-CN-YunxiaNeural", "child boy"),
+        ("zh-CN-YunyangNeural", "adult male (news)"),
+    ) 
+
+    print("Please choose a voice:")
+    for i, (voice, description) in enumerate(voices, 1):
+        print(f"{i}. {description}")
+
+    choice = int(input("Enter the number of your choice: "))
+    voice = voices[choice - 1][0]
+
     asyncio.run(generate_tts(processed_text, voice, output_dir))
