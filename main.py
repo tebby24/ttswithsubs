@@ -15,6 +15,39 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def preprocess_text(input_text):
+    """
+    Preprocess the input text to normalize punctuation, collapse whitespace, and ensure consistency.
+    """
+    logger.debug("Original input text:")
+    logger.debug(input_text)
+
+    # 1. Normalize punctuation
+    normalized_text = input_text
+    normalized_text = normalized_text.replace("……", "...")  # Replace ellipsis
+    normalized_text = normalized_text.replace("“", '"').replace("”", '"')  # Replace quotes
+    normalized_text = normalized_text.replace("‘", "'").replace("’", "'")  # Replace single quotes
+
+    # 2. Collapse whitespace and remove unnecessary characters
+    normalized_text = re.sub(r'\s+', ' ', normalized_text)  # Replace multiple spaces/newlines with single space
+    normalized_text = normalized_text.strip()  # Trim leading/trailing spaces
+
+    # 3. Remove unsupported symbols (optional)
+    # Define valid Mandarin characters (including basic CJK Unicode range)
+    valid_characters = re.compile(r'[。，！？；：“”（）《》〈〉、…\w\s]')
+    normalized_text = ''.join(char for char in normalized_text if valid_characters.match(char))
+
+    # 4. Space around punctuation (optional, if alignment benefits from this)
+    # E.g., "毛泽东，中华人民共和国。" -> "毛泽东 ， 中华人民共和国 。"
+    spaced_text = re.sub(r'(。|，|！|？|；)', r' \1 ', normalized_text)
+    spaced_text = re.sub(r'\s+', ' ', spaced_text)  # Remove extra spaces created by spacing adjustment
+
+    logger.debug("Preprocessed text:")
+    logger.debug(spaced_text)
+
+    return spaced_text
+
+
 def get_chunks_from_text(text):
     """
     Split the text into chunks by relevant Chinese punctuation and preserve punctuation.
@@ -48,46 +81,41 @@ def align_chunks_to_timestamps(chunks, srt_entries):
     logger.debug(f"Number of SRT entries: {entry_count}")
     
     for i, chunk in enumerate(chunks):
-        # Preprocess chunk to remove punctuation for matching
+        # Preprocess chunk to remove punctuation for word-level matching
         clean_chunk = re.sub(r'[，。？！？；：、“”‘’（）【】《》〈〉、……]', '', chunk)
 
-        # Extract words in the chunk
-        words_in_chunk = list(clean_chunk)  # Characters for comparison
-        words_matched = []
-
-        start_time = None
-        end_time = None
+        # Handle punctuation-only chunks
+        if not clean_chunk:
+            logger.debug(f"Skipping punctuation-only chunk: '{chunk}'")
+            # Add the punctuation-only chunk to the result without timestamps
+            result.append((chunk, None, None))
+            continue
 
         # Match words in the chunk to SRT entries
-        while current_word_index < entry_count and words_in_chunk:
-            # Get next SRT entry
+        words_matched = []
+        start_time = None
+        end_time = None
+        while current_word_index < entry_count and clean_chunk:
             srt_word = srt_entries[current_word_index].content
 
-            # Match the SRT entry content with the chunk's content
             if clean_chunk.startswith(srt_word):
-                if not start_time:  # Set the start time of the chunk
+                if not start_time:  # Set the first matched word's start time
                     start_time = srt_entries[current_word_index].start
 
-                # Reduce the chunk's content as words are matched
-                clean_chunk = clean_chunk[len(srt_word):]
+                clean_chunk = clean_chunk[len(srt_word):]  # Remove matched part
                 words_matched.append(srt_word)
-
-                # Set the end time to the current word
-                end_time = srt_entries[current_word_index].end
-
-                # Increment the current word index
-                current_word_index += 1
+                end_time = srt_entries[current_word_index].end  # Update end time
+                current_word_index += 1  # Move to the next word entry
             else:
                 break
-
+        
         # Ensure all words in the chunk are matched
-        if clean_chunk:
-            logger.error(f"Unmatched text in chunk: {chunk}")
+        if words_matched and start_time is not None and end_time is not None:
+            result.append((chunk, start_time, end_time))
+            logger.debug(f"Chunk '{chunk}' aligned to start: {start_time}, end: {end_time}")
+        else:
+            logger.error(f"Failed to match chunk: '{chunk}'. Remaining clean chunk: '{clean_chunk}'. Start index: {current_word_index}")
             raise ValueError(f"Unable to fully match the chunk '{chunk}' with word SRT entries.")
-
-        # Add the chunk with timestamps
-        result.append((chunk, start_time, end_time))
-        logger.debug(f"Chunk '{chunk}' aligned to start: {start_time}, end: {end_time}")
     
     return result
 
@@ -108,13 +136,17 @@ def convert_word_srt_to_punctuated_srt(input_text, word_srt_content):
     # Create new SRT entries with the aligned chunks and timestamps
     punctuated_srt_entries = []
     for i, (chunk, start_time, end_time) in enumerate(chunks_with_timestamps, start=1):
+        if start_time is None or end_time is None:
+            # Skip punctuation-only chunks with no timestamps
+            logger.debug(f"Skipping punctuation-only subtitle entry: '{chunk}'")
+            continue
+
         entry = srt.Subtitle(index=i, start=start_time, end=end_time, content=chunk)
         punctuated_srt_entries.append(entry)
 
     # Generate the new SRT content
     punctuated_srt = srt.compose(punctuated_srt_entries)
     return punctuated_srt
-
 
 async def generate_tts(text, voice, output_dir) -> None:
     """Generate TTS and subtitles from text using edge_tts"""
@@ -174,7 +206,9 @@ Your content here
     title, text = content.split("# Content\n", 1)
     title = title.replace("# Title\n", "").strip()
     text = text.strip()
+    processed_text = preprocess_text(text)
+    logger.debug(f"Preprocessed TEXT: {processed_text}")
 
     output_dir = os.path.expanduser(f"~/Downloads/{title}")
     voice = "zh-CN-XiaoxiaoNeural"
-    asyncio.run(generate_tts(text, voice, output_dir))
+    asyncio.run(generate_tts(processed_text, voice, output_dir))
