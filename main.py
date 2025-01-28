@@ -5,6 +5,7 @@ import srt
 import subprocess
 import tempfile
 import srt
+from moviepy import *
 
 def process_word_srt(word_srt_content):
     """
@@ -100,6 +101,12 @@ async def generate_tts(text, voice, output_dir) -> None:
     with open(f"{output_dir}/transcript.srt", "w", encoding="utf-8") as file:
         file.write(final_srt_content)
 
+def generate_video(image_filepath, output_dir):
+    audio = AudioFileClip(f"{output_dir}/speech.mp3")
+    clip = ImageClip(image_filepath).with_duration(audio.duration)
+    clip = clip.with_audio(audio)
+    clip.write_videofile(f"{output_dir}/video.mp4", fps=24)
+
 
 def main():
     # Get the default editor from the environment or use 'nano'
@@ -149,11 +156,20 @@ Your content here
 
     choice = int(input("Enter the number of your choice: "))
     voice = voices[choice - 1][0]
-    print("Synthasizing speech...")
 
+    # Prompt the user for a image filepath
+    image_filepath = input("Enter an image filepath (leave blank for no image): ")
+
+    print("\nSynthasizing speech...")
     # Generate TTS and subtitles
     asyncio.run(generate_tts(text, voice, output_dir))
-    print(f"Speech and subtitles saved to: {output_dir}")
+
+    if(image_filepath):
+        print("Generating video...")
+        generate_video(image_filepath, output_dir)
+        print(f"\nSpeech, subtitles, and video saved to: {output_dir}")
+    else:
+        print(f"\nSpeech and subtitles saved to: {output_dir}")
 
 
 def test():
@@ -162,8 +178,10 @@ def test():
 中国，传统观念指位于天下正中的国家。原指包括河南省及附近的黄河中下游流域地区。历代王朝政权透过与周边各政权的交流与征战，中国的疆域版图几经扩张与缩减，目前扩及黑龙江流域、塞北、西域、青藏高原及南海诸岛等地。现今，国际上广泛承认代表“中国”的政权是中华人民共和国。
 """
     voice = "zh-CN-XiaoxiaoNeural"
-    output_dir = os.path.expanduser("~/Downloads/test")
+    image_filepath = "test/Mao_Proclaiming_New_China.jpeg"
+    output_dir = os.path.expanduser("test/output")
     asyncio.run(generate_tts(text, voice, output_dir))
+    generate_video(image_filepath, output_dir)
 
 
 if __name__ == "__main__":
