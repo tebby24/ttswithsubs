@@ -113,7 +113,7 @@ def synthesize_speech_with_srt(text, voice, mp3_output_filepath, srt_output_file
         i = 0
         while i < len(subtitles) - 1:
             if subtitles[i].end > subtitles[i+1].start:
-                subtitles[i].end = subtitles[i+1].start - timedelta(milliseconds=100)
+                subtitles[i].end = subtitles[i+1].start
             i += 1
 
         # write the subtitle content
