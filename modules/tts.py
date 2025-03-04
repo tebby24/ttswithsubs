@@ -108,7 +108,6 @@ def synthesize_speech_with_srt(text, voice, mp3_output_filepath, srt_output_file
         # strip subtitles
         for subtitle in subtitles:
             subtitle.content = subtitle.content.lstrip(" \t\n")
-            print(subtitle.content)
 
         # write the subtitle content
         srt_content = srt.compose(subtitles)
