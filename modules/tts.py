@@ -109,10 +109,19 @@ def synthesize_speech_with_srt(text, voice, mp3_output_filepath, srt_output_file
         for subtitle in subtitles:
             subtitle.content = subtitle.content.lstrip(" \t\n")
 
+        # fix overlapping subtitles
+        i = 0
+        while i < len(subtitles) - 1:
+            if subtitles[i].end > subtitles[i+1].start:
+                subtitles[i].end = subtitles[i+1].start - timedelta(milliseconds=100)
+            i += 1
+
         # write the subtitle content
         srt_content = srt.compose(subtitles)
         with open(filename, "w", encoding="utf-8") as srt_file:
             srt_file.write(srt_content)
+
+
 
     # Save the SRT file
     save_srt_file(timestamps, srt_output_filepath)
