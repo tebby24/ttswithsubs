@@ -9,4 +9,4 @@ if __name__ == "__main__":
         text = f.read()
     mp3_output_filepath = "bin/test/output/tts_test_output.mp3"        
     srt_output_filepath = "bin/test/output/srt_test_output.srt"
-    synthesize_speech_with_srt(text, mp3_output_filepath, srt_output_filepath)
+    synthesize_speech_with_srt(text, "zh-CN-XiaoxiaoNeural", mp3_output_filepath, srt_output_filepath)
