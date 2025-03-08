@@ -1,8 +1,7 @@
 import os
 import subprocess
 import tempfile
-from modules.tts import get_voices, synthesize_speech_with_srt
-from modules.video import generate_video
+from ttswithsubs import TTSWithSubsGenerator, VideoGenerator
 
 def main():
     # Get the default editor from the environment or use 'nano'
@@ -37,8 +36,11 @@ Your content here
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # List of available voices
-    voices = get_voices()
+    # Create an instance of the TTSWithSubsGenerator
+    tts_generator = TTSWithSubsGenerator()
+    
+    # Get list of available voices
+    voices = tts_generator.get_voices()
 
     # Prompt the user to choose a voice
     print("Please choose a voice:")
@@ -52,19 +54,18 @@ Your content here
     image_filepath = input("Enter an image filepath (leave blank for no image): ")
 
     print("\nSynthesizing speech...")
-    # Generate TTS and subtitles
+    # Generate TTS and subtitles using the class instance
     mp3_output_filepath = f"{output_dir}/speech.mp3"
     srt_output_filepath = f"{output_dir}/transcript.srt"
-    synthesize_speech_with_srt(text, voice, mp3_output_filepath, srt_output_filepath)
+    tts_generator.synthesize_speech_with_srt(text, voice, mp3_output_filepath, srt_output_filepath)
 
     if image_filepath:
         print("Generating video...")
-        generate_video(image_filepath, mp3_output_filepath, f"{output_dir}/video.mp4")
+        video_generator = VideoGenerator()
+        video_generator.generate_video(image_filepath, mp3_output_filepath, f"{output_dir}/video.mp4")
         print(f"\nSpeech, subtitles, and video saved to: {output_dir}")
     else:
         print(f"\nSpeech and subtitles saved to: {output_dir}")
 
 if __name__ == "__main__":
     main()
-
-
